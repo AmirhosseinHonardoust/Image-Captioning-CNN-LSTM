@@ -1,109 +1,312 @@
 <div align="center">
-
+    
 # Image Captioning with CNN-LSTM
-
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-CNN--LSTM-ee4c2c)
-![Computer Vision](https://img.shields.io/badge/Task-Image%20Captioning-purple)
-![NLP](https://img.shields.io/badge/Decoder-LSTM-green)
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
-![License](https://img.shields.io/github/license/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c) ![Computer Vision](https://img.shields.io/badge/Computer%20Vision-CNN-purple) ![NLP](https://img.shields.io/badge/NLP-LSTM-green) ![Task](https://img.shields.io/badge/Task-Image%20Captioning-orange) ![Status](https://img.shields.io/badge/Status-Educational%20ML%20Project-brightgreen) ![License](https://img.shields.io/github/license/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM)
 
 </div>
 
-A PyTorch-based image captioning project that combines a convolutional image encoder with an LSTM language decoder to generate natural-language descriptions for images.
+A professional deep learning project that generates natural-language captions for images using a **CNN encoder** and an **LSTM decoder**.
 
-The model follows a classic encoder-decoder architecture:
+The project combines computer vision and natural language processing by using a **ResNet-50 image encoder** to extract visual features and an **LSTM language decoder** to generate captions word by word.
 
-```text
-Image → CNN Encoder → Image Feature Vector → LSTM Decoder → Generated Caption
-```
-
-This repository is designed as a clean, educational, and extensible baseline for image captioning experiments.
+> **Important:** This project is an educational CNN-LSTM image captioning baseline.
+> The included demo dataset is intentionally tiny and is designed to verify the training and inference pipeline, not to represent real-world captioning performance.
 
 ---
 
-## Overview
+## Table of Contents
 
-Image captioning is a multimodal deep learning task that connects computer vision and natural language processing. Given an input image, the model learns to generate a sequence of words describing the image content.
+* [Project Overview](#project-overview)
+* [What This Project Does](#what-this-project-does)
+* [What This Project Does Not Do](#what-this-project-does-not-do)
+* [Features](#features)
+* [Demo Result](#demo-result)
+* [Charts and Visual Analysis](#charts-and-visual-analysis)
+* [How the Model Works](#how-the-model-works)
+* [Dataset Format](#dataset-format)
+* [Project Structure](#project-structure)
+* [Installation](#installation)
+* [Training the Model](#training-the-model)
+* [Running Inference](#running-inference)
+* [Model Output](#model-output)
+* [Evaluation](#evaluation)
+* [Testing](#testing)
+* [Code Quality](#code-quality)
+* [Limitations](#limitations)
+* [Responsible Use](#responsible-use)
+* [Future Improvements](#future-improvements)
+* [Tech Stack](#tech-stack)
+* [Author](#author)
+* [License](#license)
 
-This project uses:
+---
 
-* **ResNet-50** as the CNN image encoder
-* **LSTM** as the text decoder
-* **PyTorch** for model development and training
-* **BLEU-1 to BLEU-4** for validation and test evaluation
-* **Greedy decoding** and **Beam Search** for inference
+## Project Overview
+
+Image captioning is a multimodal deep learning task that connects **computer vision** and **language generation**.
+
+Given an input image, the model learns to generate a text caption that describes the visual content of the image.
+
+This project uses a classic encoder-decoder architecture:
+
+```text
+Image
+↓
+CNN Encoder
+↓
+Image Feature Vector
+↓
+LSTM Decoder
+↓
+Generated Caption
+```
+
+The goal of this project is to demonstrate:
+
+* A clean deep learning workflow
+* CNN-LSTM model architecture
+* Image preprocessing and caption tokenization
+* Vocabulary building
+* Training, validation, and test evaluation
+* Greedy decoding and beam search inference
+* BLEU score evaluation
+* Professional ML project documentation
+* Reproducible testing and experimentation
+
+---
+
+## What This Project Does
+
+This project can:
+
+* Load image-caption pairs from a CSV file
+* Build a vocabulary from training captions
+* Extract visual features from images using a CNN encoder
+* Train an LSTM decoder to generate captions
+* Evaluate generated captions using BLEU scores
+* Save trained model checkpoints
+* Save vocabulary files
+* Generate training and validation loss curves
+* Generate BLEU score plots
+* Run inference on new images
+* Support greedy decoding
+* Support beam search decoding
+* Run automated tests for core functionality
+
+---
+
+## What This Project Does Not Do
+
+This project does **not**:
+
+* Understand images like a human
+* Guarantee accurate captions for real-world images without enough training data
+* Produce strong results from the tiny demo dataset
+* Replace modern transformer-based vision-language models
+* Perform object detection or segmentation
+* Use external knowledge about the image
+* Verify whether generated captions are factually complete
+* Provide production-level image captioning out of the box
+
+A stronger real-world image captioning system would require a larger dataset, stronger evaluation, more diverse captions, and usually a modern attention-based or transformer-based architecture.
 
 ---
 
 ## Features
 
-* CNN-LSTM encoder-decoder architecture
-* ResNet-50 image feature extraction
-* LSTM-based caption generation
-* Custom vocabulary builder
-* Train / validation / test split support
-* BLEU-1, BLEU-2, BLEU-3, and BLEU-4 evaluation
-* Greedy decoding and beam search inference
-* Training and validation loss visualization
-* BLEU score visualization
-* Unit tests for core functionality
-* Clean project structure for experimentation
-
----
-
-## Project Structure
-
-```text
-Image-Captioning-CNN-LSTM/
-├── data/
-│   ├── captions.csv
-│   └── images/
-│       ├── example1.jpg
-│       └── example2.jpg
-├── outputs/
-│   ├── bleu_scores.png
-│   ├── training_curves.png
-│   ├── metrics.json
-│   └── vocab.json
-├── src/
-│   ├── infer.py
-│   ├── models.py
-│   ├── train.py
-│   └── utils.py
-├── tests/
-│   └── test_core.py
-├── requirements.txt
-├── requirements-dev.txt
-├── README.md
-└── LICENSE
-```
-
----
-
-## Model Architecture
-
-### Encoder
-
-The encoder uses a pretrained ResNet-50 backbone to extract visual features from the input image. The final classification layer is removed, and the extracted feature vector is projected into the embedding space used by the decoder.
-
-```text
-Input Image → ResNet-50 → Linear Projection → Image Embedding
-```
-
-### Decoder
-
-The decoder is an LSTM language model that generates captions word by word. During training, it learns to predict the next word in a caption sequence given the image representation and previous words.
-
-```text
-Image Embedding + Caption Tokens → LSTM → Vocabulary Distribution
-```
-
-During inference, the model can generate captions using:
-
+* **CNN-LSTM encoder-decoder architecture**
+* **ResNet-50 image encoder**
+* **LSTM caption decoder**
+* **Custom vocabulary builder**
+* **Caption tokenization**
+* **Train / validation / test split support**
+* **Cross-entropy loss training**
+* **BLEU-1, BLEU-2, BLEU-3, and BLEU-4 evaluation**
 * **Greedy decoding**
 * **Beam search decoding**
+* **Training and validation loss visualization**
+* **BLEU score visualization**
+* **Saved model checkpoints**
+* **Saved vocabulary file**
+* **Saved metrics file**
+* **Pytest test suite**
+* **Clean project structure**
+* **Professional README documentation**
+
+---
+
+## Demo Result
+
+The included demo dataset is intentionally small. It is used to confirm that the full pipeline works:
+
+```text
+dataset → training → checkpoint → inference → generated caption
+```
+
+Example inference results after training on the tiny demo dataset:
+
+```text
+example1.jpg → a blue image used for training
+example2.jpg → an orange image used for training
+```
+
+These results show that the model learned to distinguish between the two demo images.
+
+However, this is not real-world captioning performance. With only a few images, the model mainly memorizes the training examples.
+
+---
+
+## Charts and Visual Analysis
+
+The project automatically generates visual outputs during training. These charts help explain how the model behaves over time.
+
+Generated charts are saved in:
+
+```text
+outputs/
+```
+
+Main visual outputs:
+
+| Chart                        | Path                          | Purpose                                     |
+| ---------------------------- | ----------------------------- | ------------------------------------------- |
+| Training and Validation Loss | `outputs/training_curves.png` | Shows optimization behavior and overfitting |
+| BLEU Scores                  | `outputs/bleu_scores.png`     | Shows caption quality metrics across epochs |
+
+---
+
+### Training and Validation Loss
+
+<img width="650" height="400" alt="training_curves" src="https://github.com/user-attachments/assets/d38939b6-d5cc-4f2a-884d-db22c23f0536" />
+
+The loss curve shows how the model performs during training and validation.
+
+In the demo run:
+
+* Training loss decreases steadily
+* Training loss approaches zero
+* Validation loss increases over time
+
+This indicates **overfitting**.
+
+The model memorizes the tiny training dataset instead of learning general image-captioning patterns. This behavior is expected because the demo dataset contains only a few samples.
+
+A healthier curve on a larger dataset would usually show both training and validation loss decreasing for several epochs before validation loss stabilizes.
+
+---
+
+### BLEU Score Evaluation
+
+<img width="650" height="400" alt="bleu_scores" src="https://github.com/user-attachments/assets/afa1aeb4-b322-4867-8f5c-6404bf759ad6" />
+
+The BLEU chart shows validation BLEU-1, BLEU-2, BLEU-3, and BLEU-4 scores across epochs.
+
+BLEU scores measure overlap between generated captions and reference captions.
+
+| Metric | Meaning                                |
+| ------ | -------------------------------------- |
+| BLEU-1 | Measures unigram / single-word overlap |
+| BLEU-2 | Measures two-word sequence overlap     |
+| BLEU-3 | Measures three-word sequence overlap   |
+| BLEU-4 | Measures four-word sequence overlap    |
+
+BLEU-1 is usually higher because matching individual words is easier.
+
+BLEU-4 is usually lower because matching longer word sequences is harder.
+
+In the demo run, BLEU scores fluctuate because the validation set is extremely small. With only a few validation examples, a small change in the generated caption can cause a large change in BLEU.
+
+---
+
+### Chart Interpretation
+
+The charts confirm that:
+
+* The training pipeline works end-to-end
+* The model can learn from image-caption pairs
+* The model quickly overfits on the tiny demo dataset
+* Validation metrics are unstable when the validation set is too small
+* A larger dataset is required for meaningful performance evaluation
+
+This is the expected result for a small educational demo.
+
+---
+
+## How the Model Works
+
+The project follows a classic image captioning pipeline:
+
+```text
+Input Image
+↓
+Image Preprocessing
+↓
+CNN Encoder
+↓
+Image Feature Vector
+↓
+LSTM Decoder
+↓
+Vocabulary Distribution
+↓
+Generated Caption
+```
+
+---
+
+### CNN Encoder
+
+The encoder uses a ResNet-50 backbone to extract visual features from an image.
+
+The final classification layer is removed, and the extracted features are projected into the decoder embedding space.
+
+```text
+Image → ResNet-50 → Feature Vector → Linear Projection → Image Embedding
+```
+
+The encoder is responsible for converting the image into a compact numerical representation.
+
+---
+
+### LSTM Decoder
+
+The decoder is an LSTM-based language model.
+
+It receives the image representation and generates the caption one token at a time.
+
+```text
+Image Embedding + Previous Words → LSTM → Next Word Prediction
+```
+
+During training, the decoder learns to predict the next word in the caption sequence.
+
+During inference, the decoder generates words until it reaches an end token or the maximum caption length.
+
+---
+
+### Decoding Strategies
+
+The project supports two decoding strategies.
+
+#### Greedy Decoding
+
+Greedy decoding selects the most likely word at each step.
+
+```text
+Choose best word → choose next best word → continue
+```
+
+It is fast and simple, but it may miss better full-sentence captions.
+
+#### Beam Search
+
+Beam search keeps multiple candidate captions during generation.
+
+```text
+Keep top-k caption candidates → expand candidates → choose best sequence
+```
+
+Beam search is slower than greedy decoding but can produce better captions.
 
 ---
 
@@ -114,6 +317,7 @@ The training script expects a CSV file with the following columns:
 ```csv
 image_path,caption,split
 images/example1.jpg,a blue square with the word example1,train
+images/example1.jpg,a blue image used for training,train
 images/example2.jpg,an orange square with the word example2,val
 images/example2.jpg,an orange image used for testing,test
 ```
@@ -156,38 +360,77 @@ data/images/example1.jpg
 
 ---
 
+## Project Structure
+
+```text
+Image-Captioning-CNN-LSTM/
+│
+├── data/
+│   ├── captions.csv
+│   └── images/
+│       ├── example1.jpg
+│       └── example2.jpg
+│
+├── outputs/
+│   ├── best_captioner.pt
+│   ├── vocab.json
+│   ├── metrics.json
+│   ├── training_curves.png
+│   └── bleu_scores.png
+│
+├── src/
+│   ├── infer.py
+│   ├── models.py
+│   ├── train.py
+│   └── utils.py
+│
+├── tests/
+│   └── test_core.py
+│
+├── README.md
+├── requirements.txt
+├── requirements-dev.txt
+└── LICENSE
+```
+
+---
+
 ## Installation
 
-### 1. Clone the repository
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM.git
 cd Image-Captioning-CNN-LSTM
 ```
 
-### 2. Create a virtual environment
+---
 
-On Windows:
+### 2. Create a Virtual Environment
 
-```bash
+On Windows CMD:
+
+```cmd
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-On macOS / Linux:
+On macOS/Linux:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+---
+
+### 3. Install Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-For development and testing:
+For development and testing tools:
 
 ```bash
 pip install -r requirements-dev.txt
@@ -195,56 +438,28 @@ pip install -r requirements-dev.txt
 
 ---
 
-## Run Tests
+## Training the Model
 
-To verify the core functionality:
-
-```bash
-pytest
-```
-
-Expected result:
-
-```text
-4 passed
-```
-
----
-
-## Training
-
-Train the model using:
+Run:
 
 ```bash
 python src/train.py --captions data/captions.csv --images-root data --epochs 20 --min-freq 1 --num-workers 0
 ```
 
-Important arguments:
+This will:
 
-| Argument           | Description                                             |
-| ------------------ | ------------------------------------------------------- |
-| `--captions`       | Path to the captions CSV file                           |
-| `--images-root`    | Root directory used to resolve image paths              |
-| `--epochs`         | Number of training epochs                               |
-| `--batch-size`     | Training batch size                                     |
-| `--min-freq`       | Minimum word frequency required to enter the vocabulary |
-| `--num-workers`    | DataLoader worker count                                 |
-| `--no-pretrained`  | Disable pretrained ResNet weights                       |
-| `--train-backbone` | Fine-tune the CNN backbone                              |
+* Load the captions CSV
+* Build the vocabulary
+* Load and preprocess images
+* Train the CNN-LSTM model
+* Evaluate on the validation split
+* Evaluate on the test split if available
+* Save the best checkpoint
+* Save the vocabulary
+* Save metrics
+* Generate charts
 
-Example with a larger batch size:
-
-```bash
-python src/train.py --captions data/captions.csv --images-root data --epochs 20 --batch-size 16 --min-freq 1 --num-workers 0
-```
-
-If pretrained ResNet weights cannot be downloaded, run:
-
-```bash
-python src/train.py --captions data/captions.csv --images-root data --epochs 20 --min-freq 1 --num-workers 0 --no-pretrained
-```
-
-After training, the following files are generated in `outputs/`:
+Generated outputs:
 
 ```text
 outputs/best_captioner.pt
@@ -256,9 +471,62 @@ outputs/bleu_scores.png
 
 ---
 
-## Inference
+### Common Training Arguments
 
-Run inference on a single image:
+| Argument           | Description                           |
+| ------------------ | ------------------------------------- |
+| `--captions`       | Path to the captions CSV file         |
+| `--images-root`    | Root directory for image paths        |
+| `--outdir`         | Directory for saved outputs           |
+| `--epochs`         | Number of training epochs             |
+| `--batch-size`     | Training batch size                   |
+| `--embed-dim`      | Embedding dimension                   |
+| `--hidden-dim`     | LSTM hidden dimension                 |
+| `--num-layers`     | Number of LSTM layers                 |
+| `--dropout`        | Dropout value                         |
+| `--min-freq`       | Minimum word frequency for vocabulary |
+| `--max-len`        | Maximum caption length                |
+| `--lr`             | Learning rate                         |
+| `--num-workers`    | DataLoader worker count               |
+| `--no-pretrained`  | Disable pretrained ResNet weights     |
+| `--train-backbone` | Fine-tune the CNN backbone            |
+
+---
+
+### Training on a Custom Dataset
+
+To train on your own dataset, prepare this structure:
+
+```text
+my_dataset/
+├── captions.csv
+└── images/
+    ├── img1.jpg
+    ├── img2.jpg
+    └── img3.jpg
+```
+
+Example CSV:
+
+```csv
+image_path,caption,split
+images/img1.jpg,a cat sitting on a chair,train
+images/img1.jpg,a small cat resting indoors,train
+images/img2.jpg,a dog running outside,val
+images/img3.jpg,a red car parked on the road,test
+```
+
+Train with:
+
+```bash
+python src/train.py --captions my_dataset/captions.csv --images-root my_dataset --epochs 20 --min-freq 1 --num-workers 0
+```
+
+---
+
+## Running Inference
+
+After training, run inference on a single image:
 
 ```bash
 python src/infer.py --checkpoint outputs/best_captioner.pt --vocab outputs/vocab.json --image data/images/example1.jpg --max-len 20
@@ -278,30 +546,33 @@ a blue image used for training
 
 ---
 
-## Demo Result
+## Model Output
 
-The included tiny demo dataset is only intended to verify that the full pipeline works:
+The model returns a generated text caption.
 
-```text
-dataset → training → checkpoint → inference → generated caption
-```
-
-Example outputs from the demo dataset:
+Example:
 
 ```text
-example1.jpg → a blue image used for training
-example2.jpg → an orange image used for training
+Input:  example1.jpg
+Output: a blue image used for training
 ```
 
-These outputs confirm that the model can train and generate captions end-to-end.
+Another example:
 
-However, the included demo dataset is extremely small and should not be used to judge real-world image-captioning performance.
+```text
+Input:  example2.jpg
+Output: an orange image used for training
+```
+
+The generated caption depends heavily on the training dataset. With the tiny demo dataset, the model learns only a very small vocabulary and simple captions.
 
 ---
 
 ## Evaluation
 
-The training script reports:
+The project uses an evaluation workflow based on caption overlap metrics.
+
+Evaluation includes:
 
 * Training loss
 * Validation loss
@@ -309,9 +580,22 @@ The training script reports:
 * BLEU-2
 * BLEU-3
 * BLEU-4
-* Test BLEU score when a test split is available
+* Test BLEU-4 when a test split is available
 
-Example log:
+Metrics are saved to:
+
+```text
+outputs/metrics.json
+```
+
+Charts are saved to:
+
+```text
+outputs/training_curves.png
+outputs/bleu_scores.png
+```
+
+Example training log:
 
 ```text
 [epoch 1] train_loss=1.2785 val_loss=0.7448 BLEU-1=0.3250 BLEU-4=0.2638
@@ -319,80 +603,128 @@ Example log:
 [OK] Test BLEU-4: 0.1792
 ```
 
-Generated plots:
+---
 
-```text
-outputs/training_curves.png
-outputs/bleu_scores.png
-```
+### Why This Matters
 
-### Important Note About Small Datasets
+A common mistake in beginner image captioning projects is showing generated captions without explaining how reliable the evaluation is.
 
-When training on only a few images, the model will overfit quickly. This usually appears as:
+This project reports training behavior, validation behavior, BLEU metrics, and limitations so the results are easier to interpret.
 
-```text
-training loss decreases
-validation loss increases
-BLEU scores fluctuate heavily
-```
-
-This behavior is expected for tiny datasets. For meaningful evaluation, train the model on a larger image-caption dataset.
+For tiny datasets, the metrics should not be treated as real performance indicators.
 
 ---
 
-## Recommended Dataset Size
+## Testing
 
-For real image-captioning results, use a dataset with many images and diverse captions.
+Run the test suite:
 
-Suggested minimums:
+```bash
+pytest
+```
 
-| Dataset Size     | Use Case                    |
-| ---------------- | --------------------------- |
-| 2–10 images      | Pipeline testing only       |
-| 50–100 images    | Small demo                  |
-| 500–1,000 images | Better experimental results |
-| 5,000+ images    | More realistic training     |
+Expected result:
 
-For better performance, each image should ideally have multiple captions.
+```text
+4 passed
+```
 
-Example:
+The tests check important project behavior, including:
 
-```csv
-image_path,caption,split
-images/cat1.jpg,a cat sitting on a sofa,train
-images/cat1.jpg,a small cat resting indoors,train
-images/cat1.jpg,a grey cat sitting on furniture,train
+* Vocabulary serialization and loading
+* BLEU score output
+* Decoder output alignment
+* Core model behavior
+
+---
+
+## Code Quality
+
+The project includes development tooling through:
+
+```text
+requirements-dev.txt
+tests/
+```
+
+These files support:
+
+* Automated tests
+* More reliable refactoring
+* Cleaner project maintenance
+* Professional GitHub presentation
+
+Recommended check before pushing changes:
+
+```bash
+pytest
 ```
 
 ---
 
 ## Limitations
 
-This project is a CNN-LSTM baseline and is intended for learning, experimentation, and portfolio demonstration.
+This project has important limitations.
 
-Current limitations:
+The model:
 
-* The included dataset is tiny and only suitable for testing the pipeline.
-* CNN-LSTM models are weaker than modern transformer-based captioning models.
-* BLEU scores on very small validation sets are unstable.
-* The model requires a larger dataset to generate meaningful real-world captions.
-* The checkpoint file is generated after training and is not expected to be committed to GitHub.
+* Is a CNN-LSTM baseline
+* Is weaker than modern transformer-based image captioning models
+* Needs a larger dataset for meaningful captions
+* Overfits quickly on tiny datasets
+* Has unstable BLEU scores when validation data is too small
+* Does not use attention
+* Does not use object detection
+* Does not reason about unseen objects
+* Does not verify caption correctness
+* Should not be treated as a production-ready captioning system
+
+High performance on a tiny demo dataset does not guarantee useful real-world captioning performance.
+
+---
+
+## Responsible Use
+
+This project is intended for:
+
+* Deep learning education
+* Computer vision practice
+* NLP practice
+* Multimodal AI portfolio demonstration
+* CNN-LSTM architecture learning
+* Reproducible ML experimentation
+
+It should not be used for:
+
+* Production image understanding
+* Accessibility tools without stronger validation
+* Safety-critical visual interpretation
+* Medical, legal, or security image analysis
+* Replacing human review
+
+Generated captions can be incomplete, biased, or incorrect depending on the training data.
 
 ---
 
 ## Future Improvements
 
-Possible next steps:
+Possible future improvements include:
 
-* Train on a larger custom dataset
+* Train on a larger custom image-caption dataset
 * Add support for multiple reference captions per image
 * Add CIDEr, METEOR, and ROUGE-L evaluation
 * Add attention mechanism
 * Add transformer-based decoder
 * Add pretrained vision-language models
 * Add experiment tracking
-* Add GitHub Actions for automated testing
-* Add sample prediction tables to the README
+* Add dataset analysis scripts
+* Add model card
+* Add data statement
+* Add GitHub Actions CI
+* Add sample prediction table
+* Add Streamlit or Gradio demo app
+* Add Docker support
+* Add notebook walkthrough
 
 ---
 
@@ -401,15 +733,26 @@ Possible next steps:
 * Python
 * PyTorch
 * Torchvision
-* Pandas
+* pandas
 * NumPy
-* NLTK
 * Pillow
+* NLTK
 * Matplotlib
-* Pytest
+* tqdm
+* pytest
+
+---
+
+## Author
+
+**Amir Honardoust**
+
+GitHub: [@AmirhosseinHonardoust](https://github.com/AmirhosseinHonardoust)
 
 ---
 
 ## License
 
 This project is licensed under the MIT License.
+
+This project is intended for educational and portfolio purposes. If you use or modify it, keep the dataset limitations and model limitations clear.
