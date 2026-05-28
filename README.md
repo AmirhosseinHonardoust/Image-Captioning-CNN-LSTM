@@ -132,6 +132,10 @@ A stronger real-world image captioning system would require a larger dataset, st
 * **Pytest test suite**
 * **Clean project structure**
 * **Professional README documentation**
+* **GitHub Actions CI and Ruff configuration**
+* **Grouped multi-reference BLEU evaluation**
+* **Early stopping and gradient clipping options**
+* **Saved sample prediction exports**
 
 ---
 
@@ -371,12 +375,21 @@ Image-Captioning-CNN-LSTM/
 │       ├── example1.jpg
 │       └── example2.jpg
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
 ├── outputs/
-│   ├── best_captioner.pt
+│   ├── best_captioner.pt          # generated after training; not committed
 │   ├── vocab.json
 │   ├── metrics.json
+│   ├── sample_predictions.csv     # generated after test evaluation
+│   ├── sample_predictions.json    # generated after test evaluation
 │   ├── training_curves.png
 │   └── bleu_scores.png
+│
+├── scripts/
+│   └── prepare_flickr_csv.py
 │
 ├── src/
 │   ├── infer.py
@@ -387,6 +400,8 @@ Image-Captioning-CNN-LSTM/
 ├── tests/
 │   └── test_core.py
 │
+├── MODEL_CARD.md
+├── pyproject.toml
 ├── README.md
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -407,6 +422,8 @@ cd Image-Captioning-CNN-LSTM
 ---
 
 ### 2. Create a Virtual Environment
+
+Use Python 3.10 for the most reliable compatibility with the pinned PyTorch and Torchvision versions.
 
 On Windows CMD:
 
@@ -443,8 +460,10 @@ pip install -r requirements-dev.txt
 Run:
 
 ```bash
-python src/train.py --captions data/captions.csv --images-root data --epochs 20 --min-freq 1 --num-workers 0
+python src/train.py --captions data/captions.csv --images-root data --epochs 20 --min-freq 1 --num-workers 0 --grad-clip 1.0 --early-stopping-patience 5
 ```
+
+> The repository does not ship a trained checkpoint by default. Run training first to generate `outputs/best_captioner.pt`, then use that checkpoint for inference.
 
 This will:
 
@@ -457,6 +476,7 @@ This will:
 * Save the best checkpoint
 * Save the vocabulary
 * Save metrics
+* Save test-set sample predictions when a test split exists
 * Generate charts
 
 Generated outputs:
@@ -465,6 +485,8 @@ Generated outputs:
 outputs/best_captioner.pt
 outputs/vocab.json
 outputs/metrics.json
+outputs/sample_predictions.csv
+outputs/sample_predictions.json
 outputs/training_curves.png
 outputs/bleu_scores.png
 ```
@@ -473,23 +495,26 @@ outputs/bleu_scores.png
 
 ### Common Training Arguments
 
-| Argument           | Description                           |
-| ------------------ | ------------------------------------- |
-| `--captions`       | Path to the captions CSV file         |
-| `--images-root`    | Root directory for image paths        |
-| `--outdir`         | Directory for saved outputs           |
-| `--epochs`         | Number of training epochs             |
-| `--batch-size`     | Training batch size                   |
-| `--embed-dim`      | Embedding dimension                   |
-| `--hidden-dim`     | LSTM hidden dimension                 |
-| `--num-layers`     | Number of LSTM layers                 |
-| `--dropout`        | Dropout value                         |
-| `--min-freq`       | Minimum word frequency for vocabulary |
-| `--max-len`        | Maximum caption length                |
-| `--lr`             | Learning rate                         |
-| `--num-workers`    | DataLoader worker count               |
-| `--no-pretrained`  | Disable pretrained ResNet weights     |
-| `--train-backbone` | Fine-tune the CNN backbone            |
+| Argument | Description |
+| --- | --- |
+| `--captions` | Path to the captions CSV file |
+| `--images-root` | Root directory for image paths |
+| `--outdir` | Directory for saved outputs |
+| `--epochs` | Number of training epochs |
+| `--batch-size` | Training batch size |
+| `--embed-dim` | Embedding dimension |
+| `--hidden-dim` | LSTM hidden dimension |
+| `--num-layers` | Number of LSTM layers |
+| `--dropout` | Dropout value |
+| `--min-freq` | Minimum word frequency for vocabulary |
+| `--max-len` | Maximum caption length |
+| `--lr` | Learning rate |
+| `--num-workers` | DataLoader worker count |
+| `--no-pretrained` | Disable pretrained ResNet weights |
+| `--train-backbone` | Fine-tune the CNN backbone |
+| `--grad-clip` | Max gradient norm; use `0` to disable |
+| `--early-stopping-patience` | Stop after N epochs without BLEU-4 improvement |
+| `--early-stopping-min-delta` | Minimum BLEU-4 improvement for early stopping |
 
 ---
 
@@ -513,20 +538,29 @@ image_path,caption,split
 images/img1.jpg,a cat sitting on a chair,train
 images/img1.jpg,a small cat resting indoors,train
 images/img2.jpg,a dog running outside,val
+images/img2.jpg,a brown dog playing outdoors,val
 images/img3.jpg,a red car parked on the road,test
 ```
+
+Multiple rows can share the same `image_path`. During evaluation, the code groups those rows as multiple reference captions for the same image, which is the standard setup for many captioning datasets.
 
 Train with:
 
 ```bash
-python src/train.py --captions my_dataset/captions.csv --images-root my_dataset --epochs 20 --min-freq 1 --num-workers 0
+python src/train.py --captions my_dataset/captions.csv --images-root my_dataset --epochs 20 --min-freq 1 --num-workers 0 --early-stopping-patience 5
+```
+
+For Flickr-style caption files, you can generate a compatible CSV:
+
+```bash
+python scripts/prepare_flickr_csv.py --captions-file Flickr8k.token.txt --images-subdir images --output my_dataset/captions.csv
 ```
 
 ---
 
 ## Running Inference
 
-After training, run inference on a single image:
+After training has created `outputs/best_captioner.pt`, run inference on a single image:
 
 ```bash
 python src/infer.py --checkpoint outputs/best_captioner.pt --vocab outputs/vocab.json --image data/images/example1.jpg --max-len 20
@@ -580,12 +614,18 @@ Evaluation includes:
 * BLEU-2
 * BLEU-3
 * BLEU-4
+* Best validation epoch
 * Test BLEU-4 when a test split is available
+* Sample generated captions for manual review
+
+If an evaluation split contains multiple rows for the same image, those captions are grouped as multiple references for BLEU scoring.
 
 Metrics are saved to:
 
 ```text
 outputs/metrics.json
+outputs/sample_predictions.csv
+outputs/sample_predictions.json
 ```
 
 Charts are saved to:
@@ -626,7 +666,7 @@ pytest
 Expected result:
 
 ```text
-4 passed
+6 passed
 ```
 
 The tests check important project behavior, including:
@@ -644,7 +684,9 @@ The project includes development tooling through:
 
 ```text
 requirements-dev.txt
+pyproject.toml
 tests/
+.github/workflows/ci.yml
 ```
 
 These files support:
@@ -654,11 +696,14 @@ These files support:
 * Cleaner project maintenance
 * Professional GitHub presentation
 
-Recommended check before pushing changes:
+Recommended checks before pushing changes:
 
 ```bash
 pytest
+ruff check .
 ```
+
+The repository also includes GitHub Actions CI in `.github/workflows/ci.yml` so tests and linting can run automatically on pushes and pull requests.
 
 ---
 
@@ -711,17 +756,14 @@ Generated captions can be incomplete, biased, or incorrect depending on the trai
 Possible future improvements include:
 
 * Train on a larger custom image-caption dataset
-* Add support for multiple reference captions per image
 * Add CIDEr, METEOR, and ROUGE-L evaluation
 * Add attention mechanism
 * Add transformer-based decoder
 * Add pretrained vision-language models
 * Add experiment tracking
-* Add dataset analysis scripts
-* Add model card
+* Add richer dataset analysis scripts
 * Add data statement
-* Add GitHub Actions CI
-* Add sample prediction table
+* Add Streamlit or Gradio demo app
 * Add Streamlit or Gradio demo app
 * Add Docker support
 * Add notebook walkthrough

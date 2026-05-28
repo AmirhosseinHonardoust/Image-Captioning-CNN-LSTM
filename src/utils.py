@@ -6,12 +6,13 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import nltk
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+
 PAD, BOS, EOS, UNK = "<pad>", "<bos>", "<eos>", "<unk>"
 PAD_ID, BOS_ID, EOS_ID, UNK_ID = 0, 1, 2, 3
 
@@ -122,7 +123,34 @@ def pad_collate(batch):
     return imgs, padded, torch.tensor(lengths, dtype=torch.long)
 
 
-def compute_bleu(gens: list[str], refs: list[str], n: int = 4) -> float:
+def _normalize_references(refs: Sequence[str] | Sequence[Sequence[str]]) -> list[list[list[str]]]:
+    """Convert single-reference or multi-reference text into BLEU input format.
+
+    ``nltk.translate.bleu_score.corpus_bleu`` expects references as
+    ``list[list[list[str]]]``: examples -> reference captions -> tokens.
+    This helper accepts both ``["caption"]`` and ``[["caption 1", "caption 2"]]``.
+    """
+    normalized = []
+    for ref_group in refs:
+        if isinstance(ref_group, str):
+            group = [ref_group]
+        else:
+            group = list(ref_group)
+        tokenized_group = [tokenize(ref) for ref in group if str(ref).strip()]
+        normalized.append(tokenized_group or [[]])
+    return normalized
+
+
+def compute_bleu(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]], n: int = 4) -> float:
+    """Compute corpus BLEU for generated captions.
+
+    ``refs`` can contain either one reference caption per generated caption or
+    multiple reference captions per generated caption. Multiple references are
+    important for image captioning datasets such as Flickr and COCO.
+    """
+    if len(gens) != len(refs):
+        raise ValueError(f"Expected the same number of generations and references, got {len(gens)} and {len(refs)}")
+
     weights_map = {
         1: (1.0, 0, 0, 0),
         2: (0.5, 0.5, 0, 0),
@@ -130,7 +158,7 @@ def compute_bleu(gens: list[str], refs: list[str], n: int = 4) -> float:
         4: (0.25, 0.25, 0.25, 0.25),
     }
     weights = weights_map.get(n, weights_map[4])
-    refs_tok = [[tokenize(ref)] for ref in refs]
+    refs_tok = _normalize_references(refs)
     gens_tok = [tokenize(gen) for gen in gens]
     smoothing = nltk.translate.bleu_score.SmoothingFunction().method1
     try:
@@ -146,6 +174,6 @@ def compute_bleu(gens: list[str], refs: list[str], n: int = 4) -> float:
         return 0.0
 
 
-def compute_bleu_scores(gens: list[str], refs: list[str]) -> dict[str, float]:
+def compute_bleu_scores(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]]) -> dict[str, float]:
     """Compute BLEU-1 through BLEU-4."""
     return {f"bleu{n}": compute_bleu(gens, refs, n=n) for n in range(1, 5)}
