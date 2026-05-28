@@ -1,12 +1,9 @@
 import json
-import sys
-from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
 from models import DecoderLSTM
+from train import caption_loss
 from utils import Vocabulary, compute_bleu_scores
 
 
@@ -43,8 +40,27 @@ def test_decoder_alignment_shapes():
     assert aligned_logits.shape == (2, target[:, 1:].shape[1], 12)
 
 
+def test_caption_loss_ignores_image_feature_logit():
+    decoder = DecoderLSTM(vocab_size=12, embed_dim=8, hidden_dim=16, dropout=0.0)
+    features = torch.randn(2, 8)
+    target = torch.tensor([[1, 4, 5, 2], [1, 6, 7, 2]])
+
+    logits = decoder(features, target[:, :-1])
+    loss = caption_loss(logits, target, torch.nn.CrossEntropyLoss(ignore_index=0))
+
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)
+
+
 def test_bleu_scores_has_all_keys():
     scores = compute_bleu_scores(["a blue square"], ["a blue square"])
+
+    assert set(scores) == {"bleu1", "bleu2", "bleu3", "bleu4"}
+    assert scores["bleu1"] > 0
+
+
+def test_bleu_scores_support_multiple_references():
+    scores = compute_bleu_scores(["a blue square"], [["a blue square", "a small blue shape"]])
 
     assert set(scores) == {"bleu1", "bleu2", "bleu3", "bleu4"}
     assert scores["bleu1"] > 0
