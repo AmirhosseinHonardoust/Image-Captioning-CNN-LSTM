@@ -1,6 +1,0 @@
-image_path,caption,split
-images/example1.jpg,A blue square with the word example1.,train
-images/example1.jpg,A blue image used for training.,train
-images/example2.jpg,A red square with the word example2.,val
-images/example2.jpg,A red image used for validation.,val
-images/example2.jpg,A red image for testing.,test
