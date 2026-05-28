@@ -181,19 +181,19 @@ Main visual outputs:
 
 ### Training and Validation Loss
 
-<img width="650" height="400" alt="training_curves" src="https://github.com/user-attachments/assets/d38939b6-d5cc-4f2a-884d-db22c23f0536" />
+<img width="650" height="400" alt="training_curves" src="https://github.com/user-attachments/assets/f06a3be7-93d9-4c36-a221-d40066eba77f" />
 
 The loss curve shows how the model performs during training and validation.
 
 In the demo run:
 
-* Training loss decreases steadily
-* Training loss approaches zero
-* Validation loss increases over time
+Training loss decreases steadily
+Validation loss stays almost flat early, then increases over time
+The gap between training and validation loss becomes larger across epochs
 
-This indicates **overfitting**.
+This indicates overfitting.
 
-The model memorizes the tiny training dataset instead of learning general image-captioning patterns. This behavior is expected because the demo dataset contains only a few samples.
+The model is learning the tiny training dataset faster than it is learning general image-captioning patterns. This behavior is expected because the demo dataset contains only a few samples.
 
 A healthier curve on a larger dataset would usually show both training and validation loss decreasing for several epochs before validation loss stabilizes.
 
@@ -201,7 +201,7 @@ A healthier curve on a larger dataset would usually show both training and valid
 
 ### BLEU Score Evaluation
 
-<img width="650" height="400" alt="bleu_scores" src="https://github.com/user-attachments/assets/afa1aeb4-b322-4867-8f5c-6404bf759ad6" />
+<img width="650" height="400" alt="bleu_scores" src="https://github.com/user-attachments/assets/5673d798-3223-4c1f-8e9c-55da08a79350" />
 
 The BLEU chart shows validation BLEU-1, BLEU-2, BLEU-3, and BLEU-4 scores across epochs.
 
@@ -214,11 +214,12 @@ BLEU scores measure overlap between generated captions and reference captions.
 | BLEU-3 | Measures three-word sequence overlap   |
 | BLEU-4 | Measures four-word sequence overlap    |
 
-BLEU-1 is usually higher because matching individual words is easier.
+BLEU-1 improves during the first few epochs and then plateaus, showing that the model learns some individual word-level patterns.
 
-BLEU-4 is usually lower because matching longer word sequences is harder.
+BLEU-2, BLEU-3, and BLEU-4 remain much lower because matching longer word sequences is harder, especially with a very small validation set.
 
 In the demo run, BLEU scores fluctuate because the validation set is extremely small. With only a few validation examples, a small change in the generated caption can cause a large change in BLEU.
+
 
 ---
 
