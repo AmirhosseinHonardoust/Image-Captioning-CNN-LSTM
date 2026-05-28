@@ -1,0 +1,9 @@
+image_path,caption,split
+images/example1.jpg,a blue square with the word example1,train
+images/example1.jpg,a blue image used for training,train
+images/example1.jpg,a simple blue example image,val
+images/example2.jpg,an orange square with the word example2,train
+images/example2.jpg,an orange image used for training,train
+images/example2.jpg,a simple orange example image,val
+images/example1.jpg,a blue square with the word example1,test
+images/example2.jpg,an orange square with the word example2,test
