@@ -106,9 +106,19 @@ def evaluate(
     gens: list[str] = []
     refs: list[list[str]] = []
     predictions: list[dict[str, object]] = []
+    seen_images: set[str] = set()
 
     if len(dataloader.dataset) == 0:
-        metrics = {"loss": None, "bleu1": None, "bleu2": None, "bleu3": None, "bleu4": None, "num_samples": 0}
+        metrics = {
+            "loss": None,
+            "bleu1": None,
+            "bleu2": None,
+            "bleu3": None,
+            "bleu4": None,
+            "num_samples": 0,
+            "num_images": 0,
+        }
+        
         if return_predictions:
             metrics["predictions"] = []
         return metrics
@@ -133,11 +143,19 @@ def evaluate(
             out_ids = dec.sample(feats, max_len=max_len, bos_id=BOS_ID, eos_id=EOS_ID)
             for i, row in enumerate(batch_rows.itertuples(index=False)):
                 image_path = str(row.image_path)
+                
+                # Score each image only once, even if the dataset has multiple captions
+                # for the same image.
+                if image_path in seen_images:
+                    continue
+                seen_images.add(image_path)
+
                 generated = vocab.decode(out_ids[i].cpu().numpy())
                 references = reference_lookup.get(image_path, [vocab.decode(tgt[i, 1:].cpu().numpy())])
 
                 gens.append(generated)
                 refs.append(references)
+
                 if return_predictions:
                     predictions.append(
                         {
@@ -147,7 +165,11 @@ def evaluate(
                         }
                     )
 
-    metrics = {"loss": total_loss / max(1, total_items), "num_samples": total_items}
+    metrics = {
+        "loss": total_loss / max(1, total_items),
+        "num_samples": total_items,
+        "num_images": len(gens),
+    }
     metrics.update(compute_bleu_scores(gens, refs))
     if return_predictions:
         metrics["predictions"] = predictions

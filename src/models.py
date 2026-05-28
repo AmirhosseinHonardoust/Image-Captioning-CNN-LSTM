@@ -36,6 +36,7 @@ class EncoderCNN(nn.Module):
                 "Could not load pretrained ResNet-50 weights; falling back to "
                 f"random initialization. Original error: {exc}",
                 RuntimeWarning,
+                stacklevel=2,
             )
             backbone = models.resnet50(weights=None)
 
@@ -169,7 +170,7 @@ class DecoderLSTM(nn.Module):
                 log_probs = torch.log_softmax(self.fc(out[:, -1, :]), dim=-1)
                 top_scores, top_ids = torch.topk(log_probs, beam_size, dim=-1)
 
-                for log_prob, token_id in zip(top_scores[0], top_ids[0]):
+                for log_prob, token_id in zip(top_scores[0], top_ids[0], strict=False):
                     token = int(token_id.item())
                     candidates.append(
                         (

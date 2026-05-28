@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import nltk
 import torch
@@ -67,8 +67,8 @@ class Vocabulary:
             json.dump({"min_freq": self.min_freq, "word2id": self.word2id}, f, indent=2)
 
     @classmethod
-    def from_json(cls, path: str | Path) -> "Vocabulary":
-        with open(path, "r", encoding="utf-8") as f:
+    def from_json(cls, path: str | Path) -> Vocabulary:
+        with open(path, encoding="utf-8") as f:
             obj = json.load(f)
         vocab = cls(min_freq=obj.get("min_freq", 3))
         vocab.word2id = {str(word): int(idx) for word, idx in obj["word2id"].items()}
@@ -113,7 +113,7 @@ class CaptionDataset(Dataset):
 
 
 def pad_collate(batch):
-    imgs, seqs = zip(*batch)
+    imgs, seqs = zip(*batch, strict=False)
     imgs = torch.stack(imgs, dim=0)
     lengths = [len(seq) for seq in seqs]
     max_len = max(lengths)
