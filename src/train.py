@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
-import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -57,32 +57,100 @@ def caption_loss(logits: torch.Tensor, targets: torch.Tensor, criterion) -> torc
     return criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
 
 
-def evaluate(enc, dec, dataloader, vocab, criterion, device, max_len: int, desc: str):
+def references_by_image(dataset: CaptionDataset, vocab: Vocabulary, max_len: int) -> dict[str, list[str]]:
+    """Group all reference captions for each image in an evaluation split."""
+    grouped: dict[str, list[str]] = {}
+    for image_path, rows in dataset.df.groupby("image_path", sort=False):
+        grouped[str(image_path)] = [
+            vocab.decode(vocab.encode(caption, max_len=max_len)[1:]) for caption in rows["caption"].tolist()
+        ]
+    return grouped
+
+
+def save_predictions(predictions: list[dict[str, object]], outdir: Path) -> None:
+    """Save generated captions in JSON and CSV formats for manual inspection."""
+    if not predictions:
+        return
+
+    with open(outdir / "sample_predictions.json", "w", encoding="utf-8") as f:
+        json.dump(predictions, f, indent=2)
+
+    with open(outdir / "sample_predictions.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["image_path", "generated_caption", "references"])
+        writer.writeheader()
+        for row in predictions:
+            writer.writerow(
+                {
+                    "image_path": row["image_path"],
+                    "generated_caption": row["generated_caption"],
+                    "references": " | ".join(row["references"]),
+                }
+            )
+
+
+def evaluate(
+    enc,
+    dec,
+    dataloader,
+    vocab: Vocabulary,
+    criterion,
+    device,
+    max_len: int,
+    desc: str,
+    return_predictions: bool = False,
+):
     enc.eval()
     dec.eval()
     total_loss = 0.0
     total_items = 0
-    gens, refs = [], []
+    gens: list[str] = []
+    refs: list[list[str]] = []
+    predictions: list[dict[str, object]] = []
 
     if len(dataloader.dataset) == 0:
-        return {"loss": None, "bleu1": None, "bleu2": None, "bleu3": None, "bleu4": None}
+        metrics = {"loss": None, "bleu1": None, "bleu2": None, "bleu3": None, "bleu4": None, "num_samples": 0}
+        if return_predictions:
+            metrics["predictions"] = []
+        return metrics
+
+    reference_lookup = references_by_image(dataloader.dataset, vocab, max_len)
+    rows = dataloader.dataset.df.reset_index(drop=True)
+    row_cursor = 0
 
     with torch.no_grad():
         for imgs, tgt, _ in tqdm(dataloader, desc=desc):
+            batch_size = imgs.size(0)
+            batch_rows = rows.iloc[row_cursor : row_cursor + batch_size]
+            row_cursor += batch_size
+
             imgs, tgt = imgs.to(device), tgt.to(device)
             feats = enc(imgs)
             logits = dec(feats, tgt[:, :-1])
             loss = caption_loss(logits, tgt, criterion)
-            total_loss += loss.item() * imgs.size(0)
-            total_items += imgs.size(0)
+            total_loss += loss.item() * batch_size
+            total_items += batch_size
 
             out_ids = dec.sample(feats, max_len=max_len, bos_id=BOS_ID, eos_id=EOS_ID)
-            for i in range(out_ids.size(0)):
-                gens.append(vocab.decode(out_ids[i].cpu().numpy()))
-                refs.append(vocab.decode(tgt[i, 1:].cpu().numpy()))
+            for i, row in enumerate(batch_rows.itertuples(index=False)):
+                image_path = str(row.image_path)
+                generated = vocab.decode(out_ids[i].cpu().numpy())
+                references = reference_lookup.get(image_path, [vocab.decode(tgt[i, 1:].cpu().numpy())])
 
-    metrics = {"loss": total_loss / max(1, total_items)}
+                gens.append(generated)
+                refs.append(references)
+                if return_predictions:
+                    predictions.append(
+                        {
+                            "image_path": image_path,
+                            "generated_caption": generated,
+                            "references": references,
+                        }
+                    )
+
+    metrics = {"loss": total_loss / max(1, total_items), "num_samples": total_items}
     metrics.update(compute_bleu_scores(gens, refs))
+    if return_predictions:
+        metrics["predictions"] = predictions
     return metrics
 
 
@@ -105,6 +173,19 @@ def main() -> None:
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--train-backbone", action="store_true")
+    ap.add_argument("--grad-clip", type=float, default=1.0, help="Max gradient norm. Use 0 to disable clipping.")
+    ap.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=0,
+        help="Stop after this many epochs without validation BLEU-4 improvement. Use 0 to disable.",
+    )
+    ap.add_argument(
+        "--early-stopping-min-delta",
+        type=float,
+        default=0.0,
+        help="Minimum BLEU-4 improvement required to reset early stopping patience.",
+    )
     args = ap.parse_args()
 
     outdir = Path(args.outdir)
@@ -168,7 +249,8 @@ def main() -> None:
     ).to(device)
 
     criterion = nn.CrossEntropyLoss(ignore_index=0)
-    optimizer = torch.optim.Adam(list(dec.parameters()) + enc.trainable_parameters(), lr=args.lr)
+    trainable_params = list(dec.parameters()) + enc.trainable_parameters()
+    optimizer = torch.optim.Adam(trainable_params, lr=args.lr)
 
     history = {
         "train_loss": [],
@@ -179,6 +261,8 @@ def main() -> None:
         "val_bleu4": [],
     }
     best_bleu4 = -1.0
+    best_epoch = 0
+    epochs_without_improvement = 0
 
     for epoch in range(1, args.epochs + 1):
         enc.train()
@@ -193,6 +277,8 @@ def main() -> None:
             logits = dec(feats, tgt[:, :-1])
             loss = caption_loss(logits, tgt, criterion)
             loss.backward()
+            if args.grad_clip and args.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=args.grad_clip)
             optimizer.step()
             train_loss += loss.item() * imgs.size(0)
             train_items += imgs.size(0)
@@ -211,8 +297,11 @@ def main() -> None:
             f"BLEU-1={val_metrics['bleu1']:.4f} BLEU-4={val_metrics['bleu4']:.4f}"
         )
 
-        if val_metrics["bleu4"] > best_bleu4:
+        improved = val_metrics["bleu4"] > best_bleu4 + args.early_stopping_min_delta
+        if improved:
             best_bleu4 = val_metrics["bleu4"]
+            best_epoch = epoch
+            epochs_without_improvement = 0
             torch.save(
                 {
                     "encoder": enc.state_dict(),
@@ -226,28 +315,43 @@ def main() -> None:
                     "image_size": args.image_size,
                     "pretrained": args.pretrained,
                     "train_backbone": args.train_backbone,
+                    "best_epoch": best_epoch,
+                    "best_val_bleu4": best_bleu4,
                 },
                 outdir / "best_captioner.pt",
             )
+        else:
+            epochs_without_improvement += 1
 
         plot_curves(history, outdir / "training_curves.png")
         plot_bleu(history, outdir / "bleu_scores.png")
 
-    metrics = {"best_val_bleu4": best_bleu4, "history": history}
+        if args.early_stopping_patience > 0 and epochs_without_improvement >= args.early_stopping_patience:
+            print(
+                f"[early stopping] No validation BLEU-4 improvement for "
+                f"{args.early_stopping_patience} epoch(s). Best epoch: {best_epoch}."
+            )
+            break
+
+    metrics = {"best_val_bleu4": best_bleu4, "best_epoch": best_epoch, "history": history}
 
     checkpoint_path = outdir / "best_captioner.pt"
     if len(test_ds) > 0 and checkpoint_path.exists():
         checkpoint = torch.load(checkpoint_path, map_location=device)
         enc.load_state_dict(checkpoint["encoder"])
         dec.load_state_dict(checkpoint["decoder"])
-        metrics["test"] = evaluate(enc, dec, test_dl, vocab, criterion, device, args.max_len, "test")
+        test_metrics = evaluate(enc, dec, test_dl, vocab, criterion, device, args.max_len, "test", return_predictions=True)
+        predictions = test_metrics.pop("predictions", [])
+        metrics["test"] = test_metrics
+        save_predictions(predictions, outdir)
 
     with open(outdir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
-    print(f"[OK] Training done. Best validation BLEU-4: {best_bleu4:.4f}")
+    print(f"[OK] Training done. Best validation BLEU-4: {best_bleu4:.4f} at epoch {best_epoch}")
     if "test" in metrics:
         print(f"[OK] Test BLEU-4: {metrics['test']['bleu4']:.4f}")
+        print(f"[OK] Sample predictions saved to {outdir / 'sample_predictions.json'}")
 
 
 if __name__ == "__main__":
