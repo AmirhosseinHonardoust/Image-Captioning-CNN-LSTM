@@ -1,104 +1,151 @@
-import json, re, torch, numpy as np
-from torch.utils.data import Dataset
-from PIL import Image
-from torchvision import transforms
-import nltk
-from collections import Counter
+"""Utility classes and functions for image-captioning experiments."""
 
+from __future__ import annotations
+
+import json
+import re
+from collections import Counter
+from pathlib import Path
+from typing import Iterable
+
+import nltk
+import torch
+from PIL import Image
+from torch.utils.data import Dataset
 PAD, BOS, EOS, UNK = "<pad>", "<bos>", "<eos>", "<unk>"
+PAD_ID, BOS_ID, EOS_ID, UNK_ID = 0, 1, 2, 3
+
+
+def tokenize(text: str) -> list[str]:
+    """Normalize and tokenize text.
+
+    Uses NLTK when tokenizer resources are installed and falls back to a simple
+    whitespace tokenizer for smoke tests or fresh environments.
+    """
+    cleaned = re.sub(r"[^A-Za-z0-9' ]", " ", str(text).lower())
+    try:
+        return nltk.word_tokenize(cleaned)
+    except LookupError:
+        return cleaned.split()
+
 
 class Vocabulary:
-    def __init__(self, min_freq=3):
+    def __init__(self, min_freq: int = 3) -> None:
         self.min_freq = min_freq
-        self.word2id = {PAD:0, BOS:1, EOS:2, UNK:3}
-        self.id2word = {0:PAD, 1:BOS, 2:EOS, 3:UNK}
+        self.word2id = {PAD: PAD_ID, BOS: BOS_ID, EOS: EOS_ID, UNK: UNK_ID}
+        self.id2word = {PAD_ID: PAD, BOS_ID: BOS, EOS_ID: EOS, UNK_ID: UNK}
 
-    def build(self, texts):
-        tok = lambda s: nltk.word_tokenize(re.sub(r"[^A-Za-z0-9' ]"," ", s.lower()))
-        cnt = Counter()
-        for t in texts:
-            cnt.update(tok(t))
-        for w, c in cnt.items():
-            if c >= self.min_freq and w not in self.word2id:
+    def build(self, texts: Iterable[str]) -> None:
+        counter = Counter()
+        for text in texts:
+            counter.update(tokenize(text))
+
+        for word, count in counter.items():
+            if count >= self.min_freq and word not in self.word2id:
                 idx = len(self.word2id)
-                self.word2id[w] = idx
-                self.id2word[idx] = w
+                self.word2id[word] = idx
+                self.id2word[idx] = word
 
-    def encode(self, text, max_len=20):
-        tok = nltk.word_tokenize(re.sub(r"[^A-Za-z0-9' ]"," ", text.lower()))
-        ids = [self.word2id.get(w, self.word2id[UNK]) for w in tok][:max_len]
-        return [self.word2id[BOS]] + ids + [self.word2id[EOS]]
+    def encode(self, text: str, max_len: int = 20) -> list[int]:
+        token_ids = [self.word2id.get(word, UNK_ID) for word in tokenize(text)][:max_len]
+        return [BOS_ID] + token_ids + [EOS_ID]
 
-    def decode(self, ids):
+    def decode(self, ids: Iterable[int]) -> str:
         words = []
-        for i in ids:
-            w = self.id2word.get(int(i), UNK)
-            if w in [PAD, BOS]:
+        for idx in ids:
+            word = self.id2word.get(int(idx), UNK)
+            if word in {PAD, BOS}:
                 continue
-            if w == EOS:
+            if word == EOS:
                 break
-            words.append(w)
+            words.append(word)
         return " ".join(words)
 
-    def to_json(self, path):
+    def to_json(self, path: str | Path) -> None:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"min_freq": self.min_freq, "word2id": self.word2id}, f)
+            json.dump({"min_freq": self.min_freq, "word2id": self.word2id}, f, indent=2)
 
     @classmethod
-    def from_json(cls, path):
+    def from_json(cls, path: str | Path) -> "Vocabulary":
         with open(path, "r", encoding="utf-8") as f:
             obj = json.load(f)
-        v = cls(min_freq=obj["min_freq"])
-        v.word2id = obj["word2id"]
-        v.id2word = {int(i):w for w,i in [(i, w) for w,i in v.word2id.items()]}
-        return v
+        vocab = cls(min_freq=obj.get("min_freq", 3))
+        vocab.word2id = {str(word): int(idx) for word, idx in obj["word2id"].items()}
+        vocab.id2word = {idx: word for word, idx in vocab.word2id.items()}
+        return vocab
+
 
 class CaptionDataset(Dataset):
-    def __init__(self, df, images_root, vocab, split="train", max_len=20, image_size=224):
+    def __init__(
+        self,
+        df,
+        images_root: str | Path,
+        vocab: Vocabulary,
+        split: str = "train",
+        max_len: int = 20,
+        image_size: int = 224,
+    ) -> None:
         self.df = df[df["split"] == split].reset_index(drop=True)
-        self.images_root = images_root
+        self.images_root = Path(images_root)
         self.vocab = vocab
         self.max_len = max_len
-        self.tf = transforms.Compose([
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
-        ])
+        from torchvision import transforms
 
-    def __len__(self):
+        self.tf = transforms.Compose(
+            [
+                transforms.Resize((image_size, image_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+    def __len__(self) -> int:
         return len(self.df)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         row = self.df.iloc[idx]
-        img_path = f"{self.images_root}/{row['image_path']}"
+        img_path = self.images_root / row["image_path"]
         img = Image.open(img_path).convert("RGB")
         img = self.tf(img)
         ids = self.vocab.encode(row["caption"], max_len=self.max_len)
         return img, torch.tensor(ids, dtype=torch.long)
 
+
 def pad_collate(batch):
     imgs, seqs = zip(*batch)
     imgs = torch.stack(imgs, dim=0)
-    lengths = [len(s) for s in seqs]
-    maxlen = max(lengths)
-    PAD_ID = 0
-    padded = torch.full((len(seqs), maxlen), PAD_ID, dtype=torch.long)
-    for i, s in enumerate(seqs):
-        padded[i, :len(s)] = s
+    lengths = [len(seq) for seq in seqs]
+    max_len = max(lengths)
+    padded = torch.full((len(seqs), max_len), PAD_ID, dtype=torch.long)
+    for i, seq in enumerate(seqs):
+        padded[i, : len(seq)] = seq
     return imgs, padded, torch.tensor(lengths, dtype=torch.long)
 
-def compute_bleu(gens, refs, n=4):
-    import nltk
+
+def compute_bleu(gens: list[str], refs: list[str], n: int = 4) -> float:
     weights_map = {
-        1:(1.0, 0, 0, 0),
-        2:(0.5, 0.5, 0, 0),
-        3:(1/3, 1/3, 1/3, 0),
-        4:(0.25, 0.25, 0.25, 0.25)
+        1: (1.0, 0, 0, 0),
+        2: (0.5, 0.5, 0, 0),
+        3: (1 / 3, 1 / 3, 1 / 3, 0),
+        4: (0.25, 0.25, 0.25, 0.25),
     }
     weights = weights_map.get(n, weights_map[4])
-    refs_tok = [[nltk.word_tokenize(r.lower())] for r in refs]
-    gens_tok = [nltk.word_tokenize(g.lower()) for g in gens]
+    refs_tok = [[tokenize(ref)] for ref in refs]
+    gens_tok = [tokenize(gen) for gen in gens]
+    smoothing = nltk.translate.bleu_score.SmoothingFunction().method1
     try:
-        return nltk.translate.bleu_score.corpus_bleu(refs_tok, gens_tok, weights=weights)
+        return float(
+            nltk.translate.bleu_score.corpus_bleu(
+                refs_tok,
+                gens_tok,
+                weights=weights,
+                smoothing_function=smoothing,
+            )
+        )
     except ZeroDivisionError:
         return 0.0
+
+
+def compute_bleu_scores(gens: list[str], refs: list[str]) -> dict[str, float]:
+    """Compute BLEU-1 through BLEU-4."""
+    return {f"bleu{n}": compute_bleu(gens, refs, n=n) for n in range(1, 5)}
