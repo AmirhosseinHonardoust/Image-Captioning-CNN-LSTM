@@ -2,7 +2,6 @@
     
 # Image Captioning with CNN-LSTM
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c) ![Computer Vision](https://img.shields.io/badge/Computer%20Vision-CNN-purple) ![NLP](https://img.shields.io/badge/NLP-LSTM-green) ![Task](https://img.shields.io/badge/Task-Image%20Captioning-orange) ![Status](https://img.shields.io/badge/Status-Educational%20ML%20Project-brightgreen) ![License](https://img.shields.io/github/license/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM) [![CI](https://github.com/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM/actions/workflows/ci.yml)
-
 </div>
 
 A professional deep learning project that generates natural-language captions for images using a **CNN encoder** and an **LSTM decoder**.
@@ -172,16 +171,22 @@ outputs/
 
 Main visual outputs:
 
+<div align="center">
+    
 | Chart                        | Path                          | Purpose                                     |
 | ---------------------------- | ----------------------------- | ------------------------------------------- |
 | Training and Validation Loss | `outputs/training_curves.png` | Shows optimization behavior and overfitting |
 | BLEU Scores                  | `outputs/bleu_scores.png`     | Shows caption quality metrics across epochs |
+</div>
 
 ---
 
 ### Training and Validation Loss
 
+<div align="center">
+
 <img width="650" height="400" alt="training_curves" src="https://github.com/user-attachments/assets/f06a3be7-93d9-4c36-a221-d40066eba77f" />
+</div>
 
 The loss curve shows how the model performs during training and validation.
 
@@ -201,11 +206,16 @@ A healthier curve on a larger dataset would usually show both training and valid
 
 ### BLEU Score Evaluation
 
+<div align="center">
+
 <img width="650" height="400" alt="bleu_scores" src="https://github.com/user-attachments/assets/5673d798-3223-4c1f-8e9c-55da08a79350" />
+</div>
 
 The BLEU chart shows validation BLEU-1, BLEU-2, BLEU-3, and BLEU-4 scores across epochs.
 
 BLEU scores measure overlap between generated captions and reference captions.
+
+<div align="center">
 
 | Metric | Meaning                                |
 | ------ | -------------------------------------- |
@@ -213,6 +223,7 @@ BLEU scores measure overlap between generated captions and reference captions.
 | BLEU-2 | Measures two-word sequence overlap     |
 | BLEU-3 | Measures three-word sequence overlap   |
 | BLEU-4 | Measures four-word sequence overlap    |
+</div>
 
 BLEU-1 improves during the first few epochs and then plateaus, showing that the model learns some individual word-level patterns.
 
@@ -329,11 +340,14 @@ images/example2.jpg,an orange image used for testing,test
 
 Column descriptions:
 
+<div align="center">
+
 | Column       | Description                                     |
 | ------------ | ----------------------------------------------- |
 | `image_path` | Relative path to the image from `--images-root` |
 | `caption`    | Text caption for the image                      |
 | `split`      | Dataset split: `train`, `val`, or `test`        |
+</div>
 
 Example folder structure:
 
@@ -496,6 +510,8 @@ outputs/bleu_scores.png
 
 ### Common Training Arguments
 
+<div align="center">
+
 | Argument | Description |
 | --- | --- |
 | `--captions` | Path to the captions CSV file |
@@ -516,6 +532,7 @@ outputs/bleu_scores.png
 | `--grad-clip` | Max gradient norm; use `0` to disable |
 | `--early-stopping-patience` | Stop after N epochs without BLEU-4 improvement |
 | `--early-stopping-min-delta` | Minimum BLEU-4 improvement for early stopping |
+</div>
 
 ---
 
