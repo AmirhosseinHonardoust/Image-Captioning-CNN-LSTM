@@ -391,7 +391,7 @@ def main() -> None:
 
     checkpoint_path = outdir / "best_captioner.pt"
     if len(test_ds) > 0 and checkpoint_path.exists():
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
         enc.load_state_dict(checkpoint["encoder"])
         dec.load_state_dict(checkpoint["decoder"])
         test_metrics = evaluate(

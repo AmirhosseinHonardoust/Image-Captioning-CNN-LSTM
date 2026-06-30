@@ -27,7 +27,7 @@ def main() -> None:
     args = ap.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
     vocab = Vocabulary.from_json(args.vocab)
 
     # The checkpoint contains the full encoder state, including the ResNet
