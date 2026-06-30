@@ -132,16 +132,15 @@ def _normalize_references(refs: Sequence[str] | Sequence[Sequence[str]]) -> list
     """
     normalized = []
     for ref_group in refs:
-        if isinstance(ref_group, str):
-            group = [ref_group]
-        else:
-            group = list(ref_group)
+        group = [ref_group] if isinstance(ref_group, str) else list(ref_group)
         tokenized_group = [tokenize(ref) for ref in group if str(ref).strip()]
         normalized.append(tokenized_group or [[]])
     return normalized
 
 
-def compute_bleu(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]], n: int = 4) -> float:
+def compute_bleu(
+    gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]], n: int = 4
+) -> float:
     """Compute corpus BLEU for generated captions.
 
     ``refs`` can contain either one reference caption per generated caption or
@@ -149,7 +148,10 @@ def compute_bleu(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[st
     important for image captioning datasets such as Flickr and COCO.
     """
     if len(gens) != len(refs):
-        raise ValueError(f"Expected the same number of generations and references, got {len(gens)} and {len(refs)}")
+        raise ValueError(
+            "Expected the same number of generations and references, "
+            f"got {len(gens)} and {len(refs)}"
+        )
 
     weights_map = {
         1: (1.0, 0, 0, 0),
@@ -174,6 +176,8 @@ def compute_bleu(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[st
         return 0.0
 
 
-def compute_bleu_scores(gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]]) -> dict[str, float]:
+def compute_bleu_scores(
+    gens: Sequence[str], refs: Sequence[str] | Sequence[Sequence[str]]
+) -> dict[str, float]:
     """Compute BLEU-1 through BLEU-4."""
     return {f"bleu{n}": compute_bleu(gens, refs, n=n) for n in range(1, 5)}
