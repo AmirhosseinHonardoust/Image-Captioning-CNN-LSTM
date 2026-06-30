@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -70,7 +71,7 @@ def references_by_image(
     return grouped
 
 
-def save_predictions(predictions: list[dict[str, object]], outdir: Path) -> None:
+def save_predictions(predictions: list[dict[str, Any]], outdir: Path) -> None:
     """Save generated captions in JSON and CSV formats for manual inspection."""
     if not predictions:
         return
@@ -101,18 +102,18 @@ def evaluate(
     max_len: int,
     desc: str,
     return_predictions: bool = False,
-):
+) -> dict[str, Any]:
     enc.eval()
     dec.eval()
     total_loss = 0.0
     total_items = 0
     gens: list[str] = []
     refs: list[list[str]] = []
-    predictions: list[dict[str, object]] = []
+    predictions: list[dict[str, Any]] = []
     seen_images: set[str] = set()
 
     if len(dataloader.dataset) == 0:
-        metrics = {
+        metrics: dict[str, Any] = {
             "loss": None,
             "bleu1": None,
             "bleu2": None,
@@ -289,7 +290,7 @@ def main() -> None:
     trainable_params = list(dec.parameters()) + enc.trainable_parameters()
     optimizer = torch.optim.Adam(trainable_params, lr=args.lr)
 
-    history = {
+    history: dict[str, list[float]] = {
         "train_loss": [],
         "val_loss": [],
         "val_bleu1": [],
@@ -382,7 +383,11 @@ def main() -> None:
             )
             break
 
-    metrics = {"best_val_bleu4": best_bleu4, "best_epoch": best_epoch, "history": history}
+    metrics: dict[str, Any] = {
+        "best_val_bleu4": best_bleu4,
+        "best_epoch": best_epoch,
+        "history": history,
+    }
 
     checkpoint_path = outdir / "best_captioner.pt"
     if len(test_ds) > 0 and checkpoint_path.exists():

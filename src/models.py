@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -155,10 +156,10 @@ class DecoderLSTM(nn.Module):
             return self.sample(features, max_len=max_len, bos_id=bos_id, eos_id=eos_id)
 
         _, initial_states = self.lstm(features.unsqueeze(1))
-        beams = [([bos_id], 0.0, initial_states, False)]
+        beams: list[tuple[list[int], float, Any, bool]] = [([bos_id], 0.0, initial_states, False)]
 
         for _ in range(max_len):
-            candidates = []
+            candidates: list[tuple[list[int], float, Any, bool]] = []
             for seq, score, states, done in beams:
                 if done:
                     candidates.append((seq, score, states, done))

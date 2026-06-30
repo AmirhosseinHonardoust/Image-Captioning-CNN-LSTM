@@ -37,7 +37,7 @@ class Vocabulary:
         self.id2word = {PAD_ID: PAD, BOS_ID: BOS, EOS_ID: EOS, UNK_ID: UNK}
 
     def build(self, texts: Iterable[str]) -> None:
-        counter = Counter()
+        counter: Counter[str] = Counter()
         for text in texts:
             counter.update(tokenize(text))
 
