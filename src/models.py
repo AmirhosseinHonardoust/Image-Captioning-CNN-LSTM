@@ -184,7 +184,7 @@ class DecoderLSTM(nn.Module):
             def normalized(candidate):
                 seq, score, _, _ = candidate
                 length = max(1, len(seq) - 1)
-                return score / (length ** length_penalty)
+                return score / (length**length_penalty)
 
             beams = sorted(candidates, key=normalized, reverse=True)[:beam_size]
             if all(done for _, _, _, done in beams):

@@ -57,12 +57,15 @@ def caption_loss(logits: torch.Tensor, targets: torch.Tensor, criterion) -> torc
     return criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
 
 
-def references_by_image(dataset: CaptionDataset, vocab: Vocabulary, max_len: int) -> dict[str, list[str]]:
+def references_by_image(
+    dataset: CaptionDataset, vocab: Vocabulary, max_len: int
+) -> dict[str, list[str]]:
     """Group all reference captions for each image in an evaluation split."""
     grouped: dict[str, list[str]] = {}
     for image_path, rows in dataset.df.groupby("image_path", sort=False):
         grouped[str(image_path)] = [
-            vocab.decode(vocab.encode(caption, max_len=max_len)[1:]) for caption in rows["caption"].tolist()
+            vocab.decode(vocab.encode(caption, max_len=max_len)[1:])
+            for caption in rows["caption"].tolist()
         ]
     return grouped
 
@@ -118,7 +121,7 @@ def evaluate(
             "num_samples": 0,
             "num_images": 0,
         }
-        
+
         if return_predictions:
             metrics["predictions"] = []
         return metrics
@@ -143,7 +146,7 @@ def evaluate(
             out_ids = dec.sample(feats, max_len=max_len, bos_id=BOS_ID, eos_id=EOS_ID)
             for i, row in enumerate(batch_rows.itertuples(index=False)):
                 image_path = str(row.image_path)
-                
+
                 # Score each image only once, even if the dataset has multiple captions
                 # for the same image.
                 if image_path in seen_images:
@@ -151,7 +154,9 @@ def evaluate(
                 seen_images.add(image_path)
 
                 generated = vocab.decode(out_ids[i].cpu().numpy())
-                references = reference_lookup.get(image_path, [vocab.decode(tgt[i, 1:].cpu().numpy())])
+                references = reference_lookup.get(
+                    image_path, [vocab.decode(tgt[i, 1:].cpu().numpy())]
+                )
 
                 gens.append(generated)
                 refs.append(references)
@@ -178,7 +183,9 @@ def evaluate(
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--captions", required=True, help="CSV with columns: image_path, caption, split")
+    ap.add_argument(
+        "--captions", required=True, help="CSV with columns: image_path, caption, split"
+    )
     ap.add_argument("--images-root", type=str, default="data")
     ap.add_argument("--outdir", type=str, default="outputs")
     ap.add_argument("--epochs", type=int, default=10)
@@ -195,7 +202,9 @@ def main() -> None:
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--train-backbone", action="store_true")
-    ap.add_argument("--grad-clip", type=float, default=1.0, help="Max gradient norm. Use 0 to disable clipping.")
+    ap.add_argument(
+        "--grad-clip", type=float, default=1.0, help="Max gradient norm. Use 0 to disable clipping."
+    )
     ap.add_argument(
         "--early-stopping-patience",
         type=int,
@@ -225,9 +234,15 @@ def main() -> None:
     vocab.build(df[df["split"] == "train"]["caption"].tolist())
     vocab.to_json(outdir / "vocab.json")
 
-    train_ds = CaptionDataset(df, args.images_root, vocab, split="train", max_len=args.max_len, image_size=args.image_size)
-    val_ds = CaptionDataset(df, args.images_root, vocab, split="val", max_len=args.max_len, image_size=args.image_size)
-    test_ds = CaptionDataset(df, args.images_root, vocab, split="test", max_len=args.max_len, image_size=args.image_size)
+    train_ds = CaptionDataset(
+        df, args.images_root, vocab, split="train", max_len=args.max_len, image_size=args.image_size
+    )
+    val_ds = CaptionDataset(
+        df, args.images_root, vocab, split="val", max_len=args.max_len, image_size=args.image_size
+    )
+    test_ds = CaptionDataset(
+        df, args.images_root, vocab, split="test", max_len=args.max_len, image_size=args.image_size
+    )
 
     if len(train_ds) == 0:
         raise ValueError("No training rows found. The captions CSV must contain split='train'.")
@@ -306,7 +321,16 @@ def main() -> None:
             train_items += imgs.size(0)
 
         train_loss /= max(1, train_items)
-        val_metrics = evaluate(enc, dec, val_dl, vocab, criterion, device, args.max_len, f"Epoch {epoch}/{args.epochs} [val]")
+        val_metrics = evaluate(
+            enc,
+            dec,
+            val_dl,
+            vocab,
+            criterion,
+            device,
+            args.max_len,
+            f"Epoch {epoch}/{args.epochs} [val]",
+        )
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_metrics["loss"])
@@ -348,7 +372,10 @@ def main() -> None:
         plot_curves(history, outdir / "training_curves.png")
         plot_bleu(history, outdir / "bleu_scores.png")
 
-        if args.early_stopping_patience > 0 and epochs_without_improvement >= args.early_stopping_patience:
+        if (
+            args.early_stopping_patience > 0
+            and epochs_without_improvement >= args.early_stopping_patience
+        ):
             print(
                 f"[early stopping] No validation BLEU-4 improvement for "
                 f"{args.early_stopping_patience} epoch(s). Best epoch: {best_epoch}."
@@ -362,7 +389,17 @@ def main() -> None:
         checkpoint = torch.load(checkpoint_path, map_location=device)
         enc.load_state_dict(checkpoint["encoder"])
         dec.load_state_dict(checkpoint["decoder"])
-        test_metrics = evaluate(enc, dec, test_dl, vocab, criterion, device, args.max_len, "test", return_predictions=True)
+        test_metrics = evaluate(
+            enc,
+            dec,
+            test_dl,
+            vocab,
+            criterion,
+            device,
+            args.max_len,
+            "test",
+            return_predictions=True,
+        )
         predictions = test_metrics.pop("predictions", [])
         metrics["test"] = test_metrics
         save_predictions(predictions, outdir)

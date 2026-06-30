@@ -18,7 +18,12 @@ def main() -> None:
     ap.add_argument("--vocab", required=True)
     ap.add_argument("--image", required=True)
     ap.add_argument("--max-len", type=int, default=20)
-    ap.add_argument("--beam-size", type=int, default=1, help="Use >1 for beam search; default is greedy decoding.")
+    ap.add_argument(
+        "--beam-size",
+        type=int,
+        default=1,
+        help="Use >1 for beam search; default is greedy decoding.",
+    )
     args = ap.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
