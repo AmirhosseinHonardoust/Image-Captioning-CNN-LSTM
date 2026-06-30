@@ -52,7 +52,9 @@ def assign_split(image_name: str, split_map: dict[str, str], rng: random.Random)
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--captions-file", required=True, help="Flickr-style captions text file")
-    parser.add_argument("--images-subdir", default="images", help="Prefix stored in image_path column")
+    parser.add_argument(
+        "--images-subdir", default="images", help="Prefix stored in image_path column"
+    )
     parser.add_argument("--output", default="captions.csv", help="Output CSV path")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -84,7 +86,9 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    counts = {split: sum(row["split"] == split for row in rows) for split in ["train", "val", "test"]}
+    counts = {
+        split: sum(row["split"] == split for row in rows) for split in ["train", "val", "test"]
+    }
     print(f"Wrote {len(rows)} rows to {args.output}: {counts}")
 
 
