@@ -782,7 +782,6 @@ Possible future improvements include:
 * Add richer dataset analysis scripts
 * Add data statement
 * Add Streamlit or Gradio demo app
-* Add Streamlit or Gradio demo app
 * Add Docker support
 * Add notebook walkthrough
 
