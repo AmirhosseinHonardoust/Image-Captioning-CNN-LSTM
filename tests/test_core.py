@@ -22,7 +22,11 @@ def test_vocabulary_json_roundtrip(tmp_path):
 
 def test_legacy_vocab_json_loads(tmp_path):
     path = tmp_path / "legacy_vocab.json"
-    path.write_text(json.dumps({"min_freq": 1, "word2id": {"<pad>": 0, "<bos>": 1, "<eos>": 2, "<unk>": 3, "blue": 4}}))
+    path.write_text(
+        json.dumps(
+            {"min_freq": 1, "word2id": {"<pad>": 0, "<bos>": 1, "<eos>": 2, "<unk>": 3, "blue": 4}}
+        )
+    )
 
     loaded = Vocabulary.from_json(path)
 
