@@ -1,5 +1,5 @@
 <div align="center">
-        
+         
 # Image Captioning with CNN-LSTM
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c) ![Computer Vision](https://img.shields.io/badge/Computer%20Vision-CNN-purple) ![NLP](https://img.shields.io/badge/NLP-LSTM-green) ![Task](https://img.shields.io/badge/Task-Image%20Captioning-orange) ![Status](https://img.shields.io/badge/Status-Educational%20ML%20Project-brightgreen) ![License](https://img.shields.io/github/license/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM) [![CI](https://github.com/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AmirhosseinHonardoust/Image-Captioning-CNN-LSTM/actions/workflows/ci.yml)
 </div>
