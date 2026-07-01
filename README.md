@@ -116,6 +116,7 @@ A stronger real-world image captioning system would require a larger dataset, st
 * **CNN-LSTM encoder-decoder architecture**
 * **ResNet-50 image encoder**
 * **LSTM caption decoder**
+* **Optional visual attention decoder (Show, Attend and Tell)**
 * **Custom vocabulary builder**
 * **Caption tokenization**
 * **Train / validation / test split support**
@@ -297,6 +298,22 @@ Image Embedding + Previous Words → LSTM → Next Word Prediction
 During training, the decoder learns to predict the next word in the caption sequence.
 
 During inference, the decoder generates words until it reaches an end token or the maximum caption length.
+
+---
+
+### Attention Decoder (Show, Attend and Tell)
+
+The project also includes an optional attention decoder, selected with `--decoder attention`.
+
+Instead of compressing the image into a single vector, the encoder keeps the spatial feature grid, and the decoder attends over image regions at each step.
+
+```text
+Spatial image features + Previous Words → Attention → Context → LSTM → Next Word
+```
+
+At every step the decoder produces a distribution over image locations (the attention weights) and uses the resulting context vector to predict the next word. This raises the model's ceiling and makes generation interpretable, at the cost of a heavier decoder.
+
+The baseline `lstm` decoder remains the default; the two share the same training, evaluation, and inference code paths.
 
 ---
 
@@ -573,6 +590,16 @@ For Flickr-style caption files, you can generate a compatible CSV:
 ```bash
 python scripts/prepare_flickr_csv.py --captions-file Flickr8k.token.txt --images-subdir images --output my_dataset/captions.csv
 ```
+
+### Training with Attention
+
+To train the attention decoder on real data (for example Flickr8k), add `--decoder attention` and let the backbone fine-tune:
+
+```bash
+python src/train.py --captions my_dataset/captions.csv --images-root my_dataset --decoder attention --train-backbone --epochs 30 --min-freq 3 --early-stopping-patience 5
+```
+
+`--attention-dim` controls the attention hidden size and `--alpha-c` controls the doubly-stochastic attention regularization. The decoder type is stored in the checkpoint, so inference automatically rebuilds the correct architecture. Beam search currently applies to the baseline decoder only; the attention decoder uses greedy decoding.
 
 ---
 

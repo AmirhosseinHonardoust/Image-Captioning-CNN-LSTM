@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import warnings
 
 import torch
 from PIL import Image
 from torchvision import transforms
 
-from models import DecoderLSTM, EncoderCNN
+from models import AttentionDecoderLSTM, DecoderLSTM, EncoderCNN, EncoderCNNAttention
 from utils import BOS, EOS, Vocabulary
 
 
@@ -32,18 +33,36 @@ def main() -> None:
 
     # The checkpoint contains the full encoder state, including the ResNet
     # backbone, so inference does not need to download pretrained weights.
-    enc = EncoderCNN(
-        embed_dim=checkpoint["embed_dim"],
-        pretrained=False,
-        train_backbone=checkpoint.get("train_backbone", False),
-    ).to(device)
-    dec = DecoderLSTM(
-        vocab_size=checkpoint["vocab_size"],
-        embed_dim=checkpoint["embed_dim"],
-        hidden_dim=checkpoint["hidden_dim"],
-        num_layers=checkpoint.get("num_layers", 1),
-        dropout=checkpoint.get("dropout", 0.1),
-    ).to(device)
+    decoder_type = checkpoint.get("decoder_type", "lstm")
+    attention = decoder_type == "attention"
+    enc: EncoderCNN | EncoderCNNAttention
+    dec: DecoderLSTM | AttentionDecoderLSTM
+    if attention:
+        enc = EncoderCNNAttention(
+            pretrained=False,
+            train_backbone=checkpoint.get("train_backbone", False),
+        ).to(device)
+        dec = AttentionDecoderLSTM(
+            vocab_size=checkpoint["vocab_size"],
+            embed_dim=checkpoint["embed_dim"],
+            hidden_dim=checkpoint["hidden_dim"],
+            encoder_dim=checkpoint.get("encoder_dim") or enc.encoder_dim,
+            attention_dim=checkpoint.get("attention_dim", 256),
+            dropout=checkpoint.get("dropout", 0.1),
+        ).to(device)
+    else:
+        enc = EncoderCNN(
+            embed_dim=checkpoint["embed_dim"],
+            pretrained=False,
+            train_backbone=checkpoint.get("train_backbone", False),
+        ).to(device)
+        dec = DecoderLSTM(
+            vocab_size=checkpoint["vocab_size"],
+            embed_dim=checkpoint["embed_dim"],
+            hidden_dim=checkpoint["hidden_dim"],
+            num_layers=checkpoint.get("num_layers", 1),
+            dropout=checkpoint.get("dropout", 0.1),
+        ).to(device)
 
     enc.load_state_dict(checkpoint["encoder"])
     dec.load_state_dict(checkpoint["decoder"])
@@ -62,7 +81,7 @@ def main() -> None:
     img = tf(Image.open(args.image).convert("RGB")).unsqueeze(0).to(device)
     with torch.no_grad():
         feats = enc(img)
-        if args.beam_size > 1:
+        if args.beam_size > 1 and isinstance(dec, DecoderLSTM):
             ids = dec.beam_search(
                 feats,
                 max_len=args.max_len,
@@ -71,6 +90,13 @@ def main() -> None:
                 beam_size=args.beam_size,
             )
         else:
+            if args.beam_size > 1 and attention:
+                warnings.warn(
+                    "Beam search is not implemented for the attention decoder; "
+                    "falling back to greedy decoding.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
             ids = dec.sample(
                 feats,
                 max_len=args.max_len,
