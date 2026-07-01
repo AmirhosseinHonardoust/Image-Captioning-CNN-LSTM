@@ -33,3 +33,6 @@ jobs:
 
       - name: Run Black
         run: black --check .
+
+      - name: Run mypy
+        run: mypy
