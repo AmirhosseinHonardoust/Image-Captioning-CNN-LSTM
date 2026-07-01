@@ -207,3 +207,85 @@ def test_beam_search_is_deterministic_and_shaped():
 
     assert first.shape == (1, 6)
     assert torch.equal(first, second)
+
+
+def test_attention_forward_shapes_and_alpha_normalized():
+    from models import AttentionDecoderLSTM
+
+    torch.manual_seed(0)
+    dec = AttentionDecoderLSTM(
+        vocab_size=12, embed_dim=16, hidden_dim=32, encoder_dim=24, attention_dim=16, dropout=0.0
+    )
+    encoder_out = torch.randn(2, 5, 24)  # (batch, num_pixels, encoder_dim)
+    captions = torch.tensor([[1, 4, 5, 2], [1, 6, 7, 2]])
+
+    logits, alphas = dec(encoder_out, captions)
+
+    assert logits.shape == (2, 4, 12)
+    assert alphas.shape == (2, 4, 5)  # attention over the 5 spatial locations
+    # Each timestep's attention is a distribution over spatial locations.
+    assert torch.allclose(alphas.sum(dim=-1), torch.ones(2, 4), atol=1e-5)
+
+
+def test_attention_decoder_sample_shape():
+    from models import AttentionDecoderLSTM
+
+    torch.manual_seed(0)
+    dec = AttentionDecoderLSTM(
+        vocab_size=12, embed_dim=16, hidden_dim=32, encoder_dim=24, attention_dim=16, dropout=0.0
+    )
+    dec.eval()
+    encoder_out = torch.randn(3, 5, 24)
+
+    ids = dec.sample(encoder_out, max_len=6, bos_id=1, eos_id=2)
+
+    assert ids.shape[0] == 3
+    assert ids.shape[1] <= 6
+
+
+def test_attention_decoder_learns_tiny_batch():
+    """The attention decoder should overfit a tiny fixed mapping (sanity that it learns)."""
+    import torch.nn as nn
+
+    from models import AttentionDecoderLSTM
+
+    torch.manual_seed(0)
+    vocab, bos, eos = 12, 1, 2
+    encoder_out = torch.randn(3, 4, 24)
+    captions = torch.tensor([[bos, 3, 4, 5, eos], [bos, 6, 7, eos, 0], [bos, 8, 9, 3, eos]])
+    dec = AttentionDecoderLSTM(
+        vocab_size=vocab, embed_dim=16, hidden_dim=32, encoder_dim=24, attention_dim=16, dropout=0.0
+    )
+    opt = torch.optim.Adam(dec.parameters(), lr=0.05)
+    crit = nn.CrossEntropyLoss(ignore_index=0)
+    inp, tgt = captions[:, :-1], captions[:, 1:]
+
+    initial = None
+    loss = torch.tensor(0.0)
+    for _ in range(200):
+        opt.zero_grad()
+        logits, alphas = dec(encoder_out, inp)
+        loss = crit(logits.reshape(-1, vocab), tgt.reshape(-1))
+        loss = loss + ((1.0 - alphas.sum(dim=1)) ** 2).mean()
+        if initial is None:
+            initial = loss.item()
+        loss.backward()
+        opt.step()
+
+    assert loss.item() < 0.5  # converged well below the starting cross-entropy
+    assert loss.item() < initial
+
+
+def test_encoder_attention_output_shape():
+    """EncoderCNNAttention returns a flattened spatial grid (B, num_pixels, encoder_dim)."""
+    from models import EncoderCNNAttention
+
+    enc = EncoderCNNAttention(pretrained=False, train_backbone=False, encoded_image_size=2)
+    enc.eval()
+    imgs = torch.randn(2, 3, 64, 64)
+
+    with torch.no_grad():
+        feats = enc(imgs)
+
+    assert feats.shape == (2, 4, enc.encoder_dim)  # 2x2 grid -> 4 pixels
+    assert enc.encoder_dim == 2048
