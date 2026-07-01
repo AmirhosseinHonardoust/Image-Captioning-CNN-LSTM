@@ -5,7 +5,7 @@
 </div>
 
 A professional deep learning project that generates natural-language captions for images using a **CNN encoder** and an **LSTM decoder**.
-    
+
 The project combines computer vision and natural language processing by using a **ResNet-50 image encoder** to extract visual features and an **LSTM language decoder** to generate captions word by word.
 
 > **Important:** This project is an educational CNN-LSTM image captioning baseline.
