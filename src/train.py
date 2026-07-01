@@ -16,7 +16,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from models import DecoderLSTM, EncoderCNN
+from models import AttentionDecoderLSTM, DecoderLSTM, EncoderCNN, EncoderCNNAttention
 from utils import BOS_ID, EOS_ID, CaptionDataset, Vocabulary, compute_bleu_scores, pad_collate
 
 
@@ -56,6 +56,34 @@ def caption_loss(logits: torch.Tensor, targets: torch.Tensor, criterion) -> torc
     logits = logits[:, 1:, :]
     targets = targets[:, 1:]
     return criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
+
+
+def compute_loss(
+    enc,
+    dec,
+    imgs: torch.Tensor,
+    tgt: torch.Tensor,
+    criterion,
+    attention: bool,
+    alpha_c: float = 1.0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Run the encoder/decoder and return ``(features, loss)``.
+
+    Shared by training and evaluation so both decoder types use one code path.
+    The attention decoder predicts ``tgt[:, 1:]`` from inputs ``tgt[:, :-1]`` and
+    adds the doubly-stochastic attention regularizer when ``alpha_c > 0``.
+    """
+    feats = enc(imgs)
+    if attention:
+        logits, alphas = dec(feats, tgt[:, :-1])
+        targets = tgt[:, 1:]
+        loss = criterion(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
+        if alpha_c > 0:
+            loss = loss + alpha_c * ((1.0 - alphas.sum(dim=1)) ** 2).mean()
+    else:
+        logits = dec(feats, tgt[:, :-1])
+        loss = caption_loss(logits, tgt, criterion)
+    return feats, loss
 
 
 def references_by_image(
@@ -102,6 +130,7 @@ def evaluate(
     max_len: int,
     desc: str,
     return_predictions: bool = False,
+    attention: bool = False,
 ) -> dict[str, Any]:
     enc.eval()
     dec.eval()
@@ -133,9 +162,9 @@ def evaluate(
     with torch.no_grad():
         for imgs, tgt, _, indices in tqdm(dataloader, desc=desc):
             imgs, tgt = imgs.to(device), tgt.to(device)
-            feats = enc(imgs)
-            logits = dec(feats, tgt[:, :-1])
-            loss = caption_loss(logits, tgt, criterion)
+            feats, loss = compute_loss(
+                enc, dec, imgs, tgt, criterion, attention=attention, alpha_c=0.0
+            )
             batch_size = imgs.size(0)
             total_loss += loss.item() * batch_size
             total_items += batch_size
@@ -199,6 +228,24 @@ def main() -> None:
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--train-backbone", action="store_true")
+    ap.add_argument(
+        "--decoder",
+        choices=["lstm", "attention"],
+        default="lstm",
+        help="Decoder architecture: baseline 'lstm' or 'attention' (Show, Attend and Tell).",
+    )
+    ap.add_argument(
+        "--attention-dim",
+        type=int,
+        default=256,
+        help="Attention hidden size (only used when --decoder attention).",
+    )
+    ap.add_argument(
+        "--alpha-c",
+        type=float,
+        default=1.0,
+        help="Doubly-stochastic attention regularization weight (attention decoder only).",
+    )
     ap.add_argument(
         "--grad-clip", type=float, default=1.0, help="Max gradient norm. Use 0 to disable clipping."
     )
@@ -269,18 +316,35 @@ def main() -> None:
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    enc = EncoderCNN(
-        embed_dim=args.embed_dim,
-        pretrained=args.pretrained,
-        train_backbone=args.train_backbone,
-    ).to(device)
-    dec = DecoderLSTM(
-        vocab_size=len(vocab.word2id),
-        embed_dim=args.embed_dim,
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-        dropout=args.dropout,
-    ).to(device)
+    attention = args.decoder == "attention"
+    enc: EncoderCNN | EncoderCNNAttention
+    dec: DecoderLSTM | AttentionDecoderLSTM
+    if attention:
+        enc = EncoderCNNAttention(
+            pretrained=args.pretrained,
+            train_backbone=args.train_backbone,
+        ).to(device)
+        dec = AttentionDecoderLSTM(
+            vocab_size=len(vocab.word2id),
+            embed_dim=args.embed_dim,
+            hidden_dim=args.hidden_dim,
+            encoder_dim=enc.encoder_dim,
+            attention_dim=args.attention_dim,
+            dropout=args.dropout,
+        ).to(device)
+    else:
+        enc = EncoderCNN(
+            embed_dim=args.embed_dim,
+            pretrained=args.pretrained,
+            train_backbone=args.train_backbone,
+        ).to(device)
+        dec = DecoderLSTM(
+            vocab_size=len(vocab.word2id),
+            embed_dim=args.embed_dim,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+        ).to(device)
 
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     trainable_params = list(dec.parameters()) + enc.trainable_parameters()
@@ -307,9 +371,9 @@ def main() -> None:
         for imgs, tgt, _, _ in tqdm(train_dl, desc=f"Epoch {epoch}/{args.epochs} [train]"):
             imgs, tgt = imgs.to(device), tgt.to(device)
             optimizer.zero_grad()
-            feats = enc(imgs)
-            logits = dec(feats, tgt[:, :-1])
-            loss = caption_loss(logits, tgt, criterion)
+            _, loss = compute_loss(
+                enc, dec, imgs, tgt, criterion, attention=attention, alpha_c=args.alpha_c
+            )
             loss.backward()
             if args.grad_clip and args.grad_clip > 0:
                 torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=args.grad_clip)
@@ -327,6 +391,7 @@ def main() -> None:
             device,
             args.max_len,
             f"Epoch {epoch}/{args.epochs} [val]",
+            attention=attention,
         )
 
         history["train_loss"].append(train_loss)
@@ -358,6 +423,9 @@ def main() -> None:
                     "image_size": args.image_size,
                     "pretrained": args.pretrained,
                     "train_backbone": args.train_backbone,
+                    "decoder_type": args.decoder,
+                    "attention_dim": args.attention_dim,
+                    "encoder_dim": getattr(enc, "encoder_dim", None),
                     "best_epoch": best_epoch,
                     "best_val_bleu4": best_bleu4,
                 },
@@ -400,6 +468,7 @@ def main() -> None:
             args.max_len,
             "test",
             return_predictions=True,
+            attention=attention,
         )
         predictions = test_metrics.pop("predictions", [])
         metrics["test"] = test_metrics
