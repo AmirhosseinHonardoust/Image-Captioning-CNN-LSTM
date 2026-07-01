@@ -128,25 +128,21 @@ def evaluate(
         return metrics
 
     reference_lookup = references_by_image(dataloader.dataset, vocab, max_len)
-    rows = dataloader.dataset.df.reset_index(drop=True)
-    row_cursor = 0
+    df = dataloader.dataset.df
 
     with torch.no_grad():
-        for imgs, tgt, _ in tqdm(dataloader, desc=desc):
-            batch_size = imgs.size(0)
-            batch_rows = rows.iloc[row_cursor : row_cursor + batch_size]
-            row_cursor += batch_size
-
+        for imgs, tgt, _, indices in tqdm(dataloader, desc=desc):
             imgs, tgt = imgs.to(device), tgt.to(device)
             feats = enc(imgs)
             logits = dec(feats, tgt[:, :-1])
             loss = caption_loss(logits, tgt, criterion)
+            batch_size = imgs.size(0)
             total_loss += loss.item() * batch_size
             total_items += batch_size
 
             out_ids = dec.sample(feats, max_len=max_len, bos_id=BOS_ID, eos_id=EOS_ID)
-            for i, row in enumerate(batch_rows.itertuples(index=False)):
-                image_path = str(row.image_path)
+            for i in range(batch_size):
+                image_path = str(df.iloc[int(indices[i])]["image_path"])
 
                 # Score each image only once, even if the dataset has multiple captions
                 # for the same image.
@@ -308,7 +304,7 @@ def main() -> None:
         train_loss = 0.0
         train_items = 0
 
-        for imgs, tgt, _ in tqdm(train_dl, desc=f"Epoch {epoch}/{args.epochs} [train]"):
+        for imgs, tgt, _, _ in tqdm(train_dl, desc=f"Epoch {epoch}/{args.epochs} [train]"):
             imgs, tgt = imgs.to(device), tgt.to(device)
             optimizer.zero_grad()
             feats = enc(imgs)
