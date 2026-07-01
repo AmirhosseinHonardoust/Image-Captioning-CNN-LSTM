@@ -109,18 +109,23 @@ class CaptionDataset(Dataset):
         img = Image.open(img_path).convert("RGB")
         img = self.tf(img)
         ids = self.vocab.encode(row["caption"], max_len=self.max_len)
-        return img, torch.tensor(ids, dtype=torch.long)
+        return img, torch.tensor(ids, dtype=torch.long), idx
 
 
 def pad_collate(batch):
-    imgs, seqs = zip(*batch, strict=False)
+    imgs, seqs, indices = zip(*batch, strict=False)
     imgs = torch.stack(imgs, dim=0)
     lengths = [len(seq) for seq in seqs]
     max_len = max(lengths)
     padded = torch.full((len(seqs), max_len), PAD_ID, dtype=torch.long)
     for i, seq in enumerate(seqs):
         padded[i, : len(seq)] = seq
-    return imgs, padded, torch.tensor(lengths, dtype=torch.long)
+    return (
+        imgs,
+        padded,
+        torch.tensor(lengths, dtype=torch.long),
+        torch.tensor(indices, dtype=torch.long),
+    )
 
 
 def _normalize_references(refs: Sequence[str] | Sequence[Sequence[str]]) -> list[list[list[str]]]:
